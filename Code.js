@@ -44,6 +44,9 @@ function lookupItem(itemId) {
         category: values[i][3],
         itemName: values[i][4],
         issue: values[i][5],
+        fixerName: values[i][7],
+        resolution: values[i][8],
+        notes: values[i][9],
         rowIndex: i + 1
       };
     }
