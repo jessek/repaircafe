@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background: #f4f7f6; max-width: 600px; margin: auto; }
+        .tab-btn { padding: 10px; cursor: pointer; border: none; background: #ddd; }
+        .active { background: #6f42c1; color: white; }
+        .view { display: none; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-top: 10px; }
+        .status-msg { padding: 10px; margin-bottom: 10px; border-radius: 4px; display: none; text-align: center; font-weight: bold; }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        input, select, textarea { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; box-sizing: border-box; }
+        .checkbox-group { margin: 15px 0; display: flex; align-items: center; }
+        .checkbox-group input { width: auto; margin-right: 10px; }
+        button { background: #6f42c1; color: white; border: none; padding: 12px; width: 100%; cursor: pointer; border-radius: 4px; }
+        #statFixed { color: #28a745; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <div id="statusBox" class="status-msg"></div>
+
+    <button class="tab-btn active" onclick="showView('intake')">Intake</button>
+    <button class="tab-btn" onclick="showView('repair')">Repair</button>
+    <button class="tab-btn" onclick="showView('dashboard'); loadStats();">Stats</button>
+
+    <div id="intake" class="view" style="display:block;">
+        <h3>New Intake</h3>
+        <input id="itemId" placeholder="Item ID #">
+        <input id="clientName" placeholder="Client Name">
+        <input id="email" placeholder="Email Address">
+        <select id="category">
+            <option value="" disabled selected>Select Category</option>
+            <option value="Sewing">Sewing</option>
+            <option value="Electrical">Electrical</option>
+            <option value="Mechanical">Mechanical</option>
+        </select>
+        <input id="itemName" placeholder="Item Name (e.g. Toaster)">
+        <textarea id="issue" placeholder="Describe the problem..."></textarea>
+        
+        <div class="checkbox-group">
+            <input type="checkbox" id="mailingList"> <label for="mailingList">Add to mailing list?</label>
+        </div>
+        <div class="checkbox-group">
+            <input type="checkbox" id="clientIsFixer"> <label for="clientIsFixer">Client is a volunteer fixer?</label>
+        </div>
+        
+        <button onclick="submitIntake()">Check In Item</button>
+    </div>
+
+    <div id="repair" class="view">
+        <h3>Repair Console</h3>
+        <input id="searchId" placeholder="Scan or Enter Item ID">
+        <button onclick="findItem()" style="background:#555">Look Up Item</button>
+        
+        <div id="repairForm" style="display:none; margin-top:20px; border-top: 1px solid #eee; padding-top: 20px;">
+            <p><strong>Item:</strong> <span id="dispItem"></span> (<span id="dispCat"></span>)</p>
+            <p><strong>Client:</strong> <span id="dispClient"></span></p>
+            <p><strong>Issue:</strong> <i id="dispIssue"></i></p>
+            
+            <input id="fixerName" placeholder="Fixer Name">
+            <select id="resolution">
+                <option value="Fixed">Fixed</option>
+                <option value="Diagnosed">Diagnosed</option>
+                <option value="Advised">Advised</option>
+                <option value="Client Not Found">Client Not Found</option>
+            </select>
+            <textarea id="notes" placeholder="Repair notes / Parts used..."></textarea>
+            <input type="hidden" id="currentRow">
+            <button onclick="submitRepair()">Log Repair Resolution</button>
+        </div>
+    </div>
+
+    <div id="dashboard" class="view">
+        <h3>Live Activity Summary</h3>
+        <p>Total Checked In: <span id="statTotal">0</span></p>
+        <p>Fixed: <span id="statFixed">0</span></p>
+        <p>Diagnosed: <span id="statDiagnosed">0</span></p>
+        <p>Advised: <span id="statAdvised">0</span></p>
+        <p>Client Not Found: <span id="statNotFound">0</span></p>
+    </div>
+
+    <script>
+        function setStatus(msg, type) {
+            const box = document.getElementById('statusBox');
+            box.innerText = msg;
+            box.className = 'status-msg ' + type;
+            box.style.display = 'block';
+            setTimeout(() => { box.style.display = 'none'; }, 5000);
+        }
+
+        function showView(id) {
+            document.querySelectorAll('.view').forEach(v => v.style.display = 'none');
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(id).style.display = 'block';
+            event.target.classList.add('active');
+        }
+
+        function submitIntake() {
+            const data = {
+                itemId: document.getElementById('itemId').value,
+                clientName: document.getElementById('clientName').value,
+                email: document.getElementById('email').value,
+                category: document.getElementById('category').value,
+                itemName: document.getElementById('itemName').value,
+                issue: document.getElementById('issue').value,
+                mailingList: document.getElementById('mailingList').checked,
+                clientIsFixer: document.getElementById('clientIsFixer').checked
+            };
+            
+            // Clear status and call the script
+            document.getElementById('statusBox').style.display = 'none';
+
+            google.script.run
+                .withSuccessHandler(res => {
+                    setStatus(res, 'success');
+                    // Clear inputs on success
+                    document.querySelectorAll('#intake input:not([type="checkbox"]), #intake textarea, #intake select').forEach(i => i.value = '');
+                    document.querySelectorAll('#intake input[type="checkbox"]').forEach(i => i.checked = false);
+                })
+                .withFailureHandler(err => {
+                    // This catches the 'throw new Error' from the server
+                    setStatus(err.message, 'error');
+                })
+                .processNewIntake(data);
+        }
+
+        function findItem() {
+            const id = document.getElementById('searchId').value;
+            google.script.run.withSuccessHandler(res => {
+                document.getElementById('dispClient').innerText = res.clientName;
+                document.getElementById('dispItem').innerText = res.itemName;
+                document.getElementById('dispCat').innerText = res.category;
+                document.getElementById('dispIssue').innerText = res.issue;
+                document.getElementById('currentRow').value = res.rowIndex;
+                document.getElementById('repairForm').style.display = 'block';
+            }).withFailureHandler(err => setStatus(err, 'error')).lookupItem(id);
+        }
+
+        function submitRepair() {
+            const data = {
+                itemId: document.getElementById('searchId').value,
+                rowIndex: document.getElementById('currentRow').value,
+                fixerName: document.getElementById('fixerName').value,
+                resolution: document.getElementById('resolution').value,
+                notes: document.getElementById('notes').value
+            };
+            google.script.run.withSuccessHandler(res => {
+                setStatus(res, 'success');
+                document.getElementById('repairForm').style.display = 'none';
+                document.getElementById('searchId').value = '';
+            }).processRepairUpdate(data);
+        }
+
+        function loadStats() {
+            google.script.run.withSuccessHandler(stats => {
+                document.getElementById('statTotal').innerText = stats.total;
+                document.getElementById('statFixed').innerText = stats.fixed;
+                document.getElementById('statDiagnosed').innerText = stats.diagnosed;
+                document.getElementById('statAdvised').innerText = stats.advised;
+                document.getElementById('statNotFound').innerText = stats.notfound;
+            }).getStats();
+        }
+    </script>
+</body>
+</html>
