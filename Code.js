@@ -1,5 +1,5 @@
 function doGet() {
-  return HtmlService.createTemplateFromFile('Index').evaluate().setTitle('Repair Intake').setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  return HtmlService.createTemplateFromFile('Index').evaluate().setTitle('Repair Cafe').setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
 function processNewIntake(data) {
