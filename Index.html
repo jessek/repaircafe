@@ -31,7 +31,6 @@
 
     <div id="intake" class="view" style="display:block;">
         <h3>New Intake</h3>
-        <input id="itemId" placeholder="Item ID #">
         <input id="clientName" placeholder="Client Name">
         <input id="email" placeholder="Email Address">
         <select id="category" title="Select Category">
@@ -56,6 +55,7 @@
         </div>
         
         <button onclick="submitIntake()">Check In Item</button>
+        <button onclick="submitIntakeAndAddAnother()" style="background: #28a745; margin-top: 10px;">Check In and Add Another for Same Client</button>
     </div>
 
     <div id="update" class="view">
@@ -69,14 +69,25 @@
             <p><strong>Issue:</strong> <i id="dispIssue"></i></p>
             
             <input id="fixerName" placeholder="Fixer Name">
-            <select id="resolution">
-                <option value="" disabled selected>Select Resolution</option>
-                <option value="Fixed">Fixed!</option>
-                <option value="Diagnosed">Diagnosed Issue</option>
-                <option value="Advised">Advised Client</option>
-                <option value="Client Not Found">Client Not Found</option>
-            </select>
-            <textarea id="notes" placeholder="Repair notes / Parts used..."></textarea>
+            <div style="margin: 15px 0;">
+                <div class="checkbox-group">
+                    <input type="radio" id="resolutionFixed" name="resolution" value="Fixed">
+                    <label for="resolutionFixed">Fixed!</label>
+                </div>
+                <div class="checkbox-group">
+                    <input type="radio" id="resolutionDiagnosed" name="resolution" value="Diagnosed">
+                    <label for="resolutionDiagnosed">Diagnosed Issue</label>
+                </div>
+                <div class="checkbox-group">
+                    <input type="radio" id="resolutionAdvised" name="resolution" value="Advised">
+                    <label for="resolutionAdvised">Advised Client</label>
+                </div>
+                <div class="checkbox-group">
+                    <input type="radio" id="resolutionNotFound" name="resolution" value="Client Not Found">
+                    <label for="resolutionNotFound">Client Not Found</label>
+                </div>
+            </div>
+            <textarea id="notes" rows="4" placeholder="Repair notes / Parts used..."></textarea>
             <input type="hidden" id="currentRow">
             <button onclick="submitUpdate()">Log Item Resolution</button>
         </div>
@@ -109,7 +120,6 @@
 
         function submitIntake() {
             const data = {
-                itemId: document.getElementById('itemId').value,
                 clientName: document.getElementById('clientName').value,
                 email: document.getElementById('email').value,
                 category: document.getElementById('category').value,
@@ -135,6 +145,43 @@
                 .processNewIntake(data);
         }
 
+        function submitIntakeAndAddAnother() {
+            const data = {
+                clientName: document.getElementById('clientName').value,
+                email: document.getElementById('email').value,
+                category: document.getElementById('category').value,
+                itemName: document.getElementById('itemName').value,
+                issue: document.getElementById('issue').value,
+                mailingList: document.getElementById('mailingList').checked,
+                clientIsFixer: document.getElementById('clientIsFixer').checked
+            };
+            
+            setStatus('Submitting item...', 'waiting');
+
+            google.script.run
+                .withSuccessHandler(res => {
+                    // Extract ID from response message (format: "Success! Item {ID} has been registered.")
+                    const idMatch = res.match(/Item (\d+)/);
+                    const itemId = idMatch ? idMatch[1] : 'unknown';
+                    setStatus('Item ' + itemId + ' checked in! Ready for next item.', 'success');
+                    
+                    // Clear form fields EXCEPT client name and email
+                    document.getElementById('category').value = '';
+                    document.getElementById('itemName').value = '';
+                    document.getElementById('issue').value = '';
+                    document.getElementById('mailingList').checked = false;
+                    document.getElementById('clientIsFixer').checked = false;
+                    
+                    // Focus on category field to prepare for next input
+                    document.getElementById('category').focus();
+                })
+                .withFailureHandler(err => {
+                    // This catches the 'throw new Error' from the server
+                    setStatus(err.message, 'error');
+                })
+                .processNewIntake(data);
+        }
+
         function findItem() {
           const id = document.getElementById('searchId').value;
           setStatus('Searching for item ' + id + '...', 'waiting');
@@ -147,7 +194,11 @@
                 document.getElementById('dispCat').innerText = res.category;
                 document.getElementById('dispIssue').innerText = res.issue;
                 document.getElementById('fixerName').value = res.fixerName;
-                document.getElementById('resolution').value = res.resolution;
+                // Set the radio button based on resolution value
+                const resolutionRadios = document.querySelectorAll('input[name="resolution"]');
+                resolutionRadios.forEach(radio => {
+                    radio.checked = (radio.value === res.resolution);
+                });
                 document.getElementById('notes').value = res.notes;
                 document.getElementById('currentRow').value = res.rowIndex;
                 document.getElementById('repairForm').style.display = 'block';
@@ -156,11 +207,12 @@
 
         function submitUpdate() {
             setStatus('Updating item...', 'waiting');
+            const checkedResolution = document.querySelector('input[name="resolution"]:checked');
             const data = {
                 itemId: document.getElementById('searchId').value,
                 rowIndex: document.getElementById('currentRow').value,
                 fixerName: document.getElementById('fixerName').value,
-                resolution: document.getElementById('resolution').value,
+                resolution: checkedResolution ? checkedResolution.value : '',
                 notes: document.getElementById('notes').value
             };
             google.script.run.withSuccessHandler(res => {

@@ -6,18 +6,25 @@ function processNewIntake(data) {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Data');
   const values = sheet.getDataRange().getValues();
   
-  // Validation: Check if Item ID already exists
-  // Item ID is in index 1 (Column B)
-  for (let i = 1; i < values.length; i++) {
-    if (values[i][1].toString() === data.itemId.toString()) {
-      throw new Error("Duplicate ID: An item with ID " + data.itemId + " is already checked in.");
+  // Generate the next Item ID
+  // Start at 101, then increment from the highest existing ID
+  let nextId = 101;
+  if (values.length > 1) {
+    // Find the highest ID in column B (index 1)
+    let maxId = 100; // Start below 101 so first item gets 101
+    for (let i = 1; i < values.length; i++) {
+      const currentId = parseInt(values[i][1]);
+      if (!isNaN(currentId) && currentId > maxId) {
+        maxId = currentId;
+      }
     }
+    nextId = maxId + 1;
   }
 
-  // If no duplicate, append the row
+  // Append the row with the generated ID
   sheet.appendRow([
     new Date(), 
-    data.itemId, 
+    nextId, 
     data.clientName, 
     data.category, 
     data.itemName, 
@@ -31,7 +38,7 @@ function processNewIntake(data) {
     data.clientIsFixer
   ]);
   
-  return "Success! Item " + data.itemId + " has been registered.";
+  return "Success! Item " + nextId + " has been registered.";
 }
 
 function lookupItem(itemId) {
